@@ -49,9 +49,6 @@ export function AuthButton() {
         <DropdownMenuItem asChild>
           <Link href="/profile">Profile</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/events">My Events</Link>
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} className="text-red-500 focus:text-red-500">
           <LogOut className="h-4 w-4 mr-2" />
