@@ -34,7 +34,7 @@ export default function CreateEventPage() {
 
   // Redirect to login if not authenticated
   if (!isLoading && !user) {
-    router.push("/auth/login?redirect=/events/create")
+    router.push("/auth/login?redirect=/auth/events/create")
     return null
   }
 
@@ -45,21 +45,13 @@ export default function CreateEventPage() {
     const timeValue = formData.get("time") as string
 
     if (!title || !dateValue || !timeValue || !category) {
-      toast({
-        title: "Missing required fields",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      })
+      toast.error("Please fill in all required fields")
       return
     }
 
     // If private event, password is required
     if (isPrivate && !eventPassword) {
-      toast({
-        title: "Password required",
-        description: "Please provide a password for your private event",
-        variant: "destructive",
-      })
+      toast.error("Please provide a password for your private event")
       return
     }
 
@@ -76,13 +68,12 @@ export default function CreateEventPage() {
 
     try {
       await createEvent(formData)
+      toast.success("Event created successfully!")
+      // Redirect to events page after creation
+      router.push("/auth/events")
     } catch (error) {
       console.error("Error creating event:", error)
-      toast({
-        title: "Error creating event",
-        description: "There was an error creating your event. Please try again.",
-        variant: "destructive",
-      })
+      toast.error("Failed to create event. Please try again.")
     }
   }
 

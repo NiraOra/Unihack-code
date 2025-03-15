@@ -50,8 +50,8 @@ export function EventList({ events }: { events: Event[] }) {
     return (
       <div className="text-center py-12 bg-muted/30 rounded-xl backdrop-blur-sm">
         <p className="text-muted-foreground mb-4">No events found</p>
-        <Link href="/events/create">
-          <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700">
+        <Link href="/auth/events/create">
+          <Button>
             <Plus className="h-4 w-4 mr-2" />
             Create Your First Event
           </Button>
