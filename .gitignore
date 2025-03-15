@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
@@ -39,3 +40,64 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+=======
+# Python environments
+.env
+/venv
+/env
+.venv
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# TypeScript build artifacts
+dist/
+out/
+*.tsbuildinfo
+
+# Build and output directories
+.build/
+.cache/
+.next/
+.vscode/
+
+# Dependencies and generated files
+.DS_Store
+*.log
+*.bak
+
+# IDE/Editor settings
+.idea/
+.vscode/
+*.swp
+
+# Jest and testing-related files
+coverage/
+.nyc_output/
+
+# ESLint and Prettier files
+.eslintcache
+.prettier.cache
+
+# Ignore environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignore compiled JavaScript files
+*.js.map
+*.d.ts
+*.d.ts.map
+
+# Ignore temporary TypeScript files
+*.tsbuildinfo
+>>>>>>> 2d623a876fb5a76862d89a662fb165277f550c82
