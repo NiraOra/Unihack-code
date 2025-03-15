@@ -1,85 +1,95 @@
-"use client"
+"use client";
 
-import type React from "react"
+import { useState } from "react";
+import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 
-import { useState } from "react"
-import Link from "next/link"
-import { Eye, EyeOff } from "lucide-react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useAuth } from "@/context/auth-context"
-import { useToast } from "@/hooks/use-toast"
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function LoginPage() {
-  const { signIn } = useAuth()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const redirectTo = searchParams.get("redirect") || "/"
-  const { toast } = useToast()
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/dashboard"; // Default redirect to dashboard
+  const { toast } = useToast();
 
-  const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [eventCode, setEventCode] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [eventCode, setEventCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Handle user login
   const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     try {
-      const { error } = await signIn(email, password)
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (error) {
-        toast({
-          title: "Login failed",
-          description: error.message,
-          variant: "destructive",
-        })
-        return
+        throw error;
       }
 
-      // Redirect to the requested page or home
-      router.push(redirectTo)
-    } catch (error) {
-      console.error("Login error:", error)
+      // Show success message
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+        variant: "default",
+      });
+
+      // Redirect to requested page or dashboard
+      router.push(redirectTo);
+    } catch (error: any) {
+      console.error("Login error:", error.message);
       toast({
         title: "Login failed",
-        description: "An unexpected error occurred. Please try again.",
+        description: error.message,
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
+  // Handle event code login (TODO: Implement logic)
   const handleEventCodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     try {
-      // TODO: Implement event code login
+      // Placeholder logic for event code authentication
       toast({
         title: "Event code login",
         description: "This feature is not yet implemented.",
         variant: "default",
-      })
-    } catch (error) {
-      console.error("Event code error:", error)
+      });
+    } catch (error: any) {
+      console.error("Event code error:", error.message);
       toast({
         title: "Login failed",
         description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/50 flex items-center justify-center">
@@ -87,9 +97,6 @@ export default function LoginPage() {
 
       <div className="container mx-auto flex items-center justify-center py-12 px-4 sm:px-6">
         <Card className="mx-auto max-w-md w-full border-0 shadow-2xl bg-gradient-to-br from-background to-background/80 backdrop-blur-sm">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -z-10" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-pink-500/5 rounded-full blur-3xl -z-10" />
-
           <CardHeader className="space-y-1">
             <CardTitle className="text-3xl font-bold text-center bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
               Welcome Back
@@ -114,12 +121,11 @@ export default function LoginPage() {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="account" className="mt-0">
+              {/* Login with Email & Password */}
+              <TabsContent value="account">
                 <form onSubmit={handleLoginSubmit} className="space-y-6">
                   <div className="space-y-3">
-                    <Label htmlFor="email" className="text-base">
-                      Email
-                    </Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
                       type="email"
@@ -127,19 +133,13 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      className="bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
                     />
                   </div>
 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-base">
-                        Password
-                      </Label>
-                      <Link
-                        href="/auth/forgot-password"
-                        className="text-sm text-purple-600 dark:text-purple-400 hover:underline"
-                      >
+                      <Label htmlFor="password">Password</Label>
+                      <Link href="/auth/forgot-password" className="text-sm text-purple-600 hover:underline">
                         Forgot password?
                       </Link>
                     </div>
@@ -151,7 +151,6 @@ export default function LoginPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        className="bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
                       />
                       <Button
                         type="button"
@@ -160,50 +159,35 @@ export default function LoginPage() {
                         className="absolute right-0 top-0 h-full px-3"
                         onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
 
-                  <Button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-md hover:shadow-lg transition-all duration-300"
-                    disabled={isLoading}
-                  >
+                  <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-pink-600" disabled={isLoading}>
                     {isLoading ? "Signing in..." : "Sign In"}
                   </Button>
                 </form>
               </TabsContent>
 
-              <TabsContent value="event-code" className="mt-0">
+              {/* Login with Event Code (TODO: Implement this feature) */}
+              <TabsContent value="event-code">
                 <form onSubmit={handleEventCodeSubmit} className="space-y-6">
                   <div className="space-y-3">
-                    <Label htmlFor="event-code" className="text-base">
-                      Event Code or Password
-                    </Label>
+                    <Label htmlFor="event-code">Event Code</Label>
                     <Input
                       id="event-code"
                       placeholder="Enter event code"
                       value={eventCode}
                       onChange={(e) => setEventCode(e.target.value)}
                       required
-                      className="bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
                     />
                     <p className="text-sm text-muted-foreground">
-                      Enter the event code or password provided by the host
+                      Enter the event code or password provided by the host.
                     </p>
                   </div>
 
-                  <Button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-md hover:shadow-lg transition-all duration-300"
-                    disabled={isLoading}
-                  >
+                  <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-pink-600" disabled={isLoading}>
                     {isLoading ? "Joining..." : "Join Event"}
                   </Button>
                 </form>
@@ -211,45 +195,14 @@ export default function LoginPage() {
             </Tabs>
           </CardContent>
 
-          <CardFooter className="flex flex-col space-y-6">
-            <div className="relative w-full">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-background/50 backdrop-blur-sm hover:bg-gradient-to-r hover:from-[#4285F4]/90 hover:to-[#4285F4]/80 hover:text-white hover:border-transparent transition-all duration-300"
-                disabled={isLoading}
-              >
-                Google
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-background/50 backdrop-blur-sm hover:bg-gradient-to-r hover:from-[#000000]/90 hover:to-[#000000]/80 hover:text-white hover:border-transparent transition-all duration-300"
-                disabled={isLoading}
-              >
-                Apple
-              </Button>
-            </div>
-
-            <div className="text-center text-sm">
-              Don&apos;t have an account?{" "}
-              <Link href="/auth/register" className="text-purple-600 dark:text-purple-400 hover:underline font-medium">
-                Sign up
-              </Link>
-            </div>
+          <CardFooter className="text-center text-sm">
+            Don&apos;t have an account?{" "}
+            <Link href="/auth/register" className="text-purple-600 hover:underline">
+              Sign up
+            </Link>
           </CardFooter>
         </Card>
       </div>
     </div>
-  )
+  );
 }
-

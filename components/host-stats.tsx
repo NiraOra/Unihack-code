@@ -7,105 +7,139 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Chart, ChartContainer, ChartBars, ChartBar, ChartPie, ChartLegend } from "@/components/ui/chart"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { toast } from "sonner"
 
 interface HostStatsProps {
   userId: string
 }
 
-interface EventType {
-  id: string;
-  category: string;
-  attendees: Array<{
-    user_id: string;
+interface Profile {
+  full_name: string
+}
+
+interface Attendee {
+  user_id: string
+  profiles: Profile
+}
+
+interface SupabaseEvent {
+  id: string
+  category: string
+  attendees: {
+    user_id: string
     profiles: {
-      full_name: string;
-    };
-  }>;
+      full_name: string
+    }
+  }[]
 }
 
 export function HostStats({ userId }: HostStatsProps) {
+  const [mounted, setMounted] = useState(false)
   const [topAttendees, setTopAttendees] = useState<{ name: string; count: number }[]>([])
   const [eventCategories, setEventCategories] = useState<{ name: string; value: number; color: string }[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    setMounted(true)
     const fetchStats = async () => {
-      setIsLoading(true)
-      const supabase = getSupabaseBrowserClient()
+      if (typeof window === "undefined") return
+      
+      try {
+        setIsLoading(true)
+        const supabase = getSupabaseBrowserClient()
 
-      // Fetch events hosted by the user
-      const { data: events } = await supabase
-        .from("events")
-        .select(`
-          id,
-          category,
-          attendees(
-            user_id,
-            profiles(full_name)
-          )
-        `)
-        .eq("host_id", userId)
+        const { data: events, error } = await supabase
+          .from("events")
+          .select(`
+            id,
+            category,
+            attendees (
+              user_id,
+              profiles (
+                full_name
+              )
+            )
+          `)
+          .eq("host_id", userId)
 
-      if (!events || events.length === 0) {
-        setTopAttendees([])
-        setEventCategories([])
-        setIsLoading(false)
-        return
-      }
+        if (error) {
+          toast.error(`Failed to fetch stats: ${error.message}`)
+          return
+        }
 
-      // Process event categories
-      const categoryColors: Record<string, string> = {
-        movie: "#6366f1",
-        party: "#a855f7",
-        picnic: "#10b981",
-        food: "#f97316",
-        travel: "#eab308",
-      }
+        if (!events?.length) {
+          setTopAttendees([])
+          setEventCategories([])
+          return
+        }
 
-      const categoryCounts: Record<string, number> = {}
-      events.forEach((event: EventType) => {
-        const category = event.category
-        categoryCounts[category] = (categoryCounts[category] || 0) + 1
-      })
+        // Process event categories
+        const categoryColors: Record<string, string> = {
+          movie: "#6366f1",
+          party: "#a855f7",
+          picnic: "#10b981",
+          food: "#f97316",
+          travel: "#eab308",
+        }
 
-      const formattedCategories = Object.entries(categoryCounts).map(([name, value]) => ({
-        name: name.charAt(0).toUpperCase() + name.slice(1),
-        value,
-        color: categoryColors[name] || "#94a3b8",
-      }))
+        const categoryCounts: Record<string, number> = {}
+        events.forEach((event) => {
+          categoryCounts[event.category] = (categoryCounts[event.category] || 0) + 1
+        })
 
-      setEventCategories(formattedCategories)
+        const formattedCategories = Object.entries(categoryCounts).map(([name, value]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          value,
+          color: categoryColors[name as keyof typeof categoryColors] || "#94a3b8",
+        }))
 
-      // Process top attendees
-      const attendeeCounts: Record<string, { name: string; count: number }> = {}
+        setEventCategories(formattedCategories)
 
-      events.forEach((event: EventType) => {
-        if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
-          event.attendees.forEach((attendee: any) => {
-            if (attendee && attendee.user_id && attendee.profiles) {
+        // Process top attendees
+        const attendeeCounts: Record<string, { name: string; count: number }> = {}
+        events.forEach((event: SupabaseEvent) => {
+          event.attendees?.forEach((attendee) => {
+            if (attendee.profiles?.full_name) {
               const userId = attendee.user_id
-              const name = attendee.profiles.full_name || "Unknown"
+              const name = attendee.profiles.full_name
 
               if (!attendeeCounts[userId]) {
                 attendeeCounts[userId] = { name, count: 0 }
               }
-
-              attendeeCounts[userId].count += 1
+              attendeeCounts[userId].count++
             }
           })
-        }
-      })
+        })
 
-      const formattedAttendees = Object.values(attendeeCounts)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5)
+        const formattedAttendees = Object.values(attendeeCounts)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5)
 
-      setTopAttendees(formattedAttendees)
-      setIsLoading(false)
+        setTopAttendees(formattedAttendees)
+      } catch (error) {
+        console.error('Error fetching stats:', error)
+        toast.error("Failed to load hosting statistics")
+      } finally {
+        setIsLoading(false)
+      }
     }
 
     fetchStats()
   }, [userId])
+
+  // Prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="animate-pulse">
+        <div className="h-8 w-48 bg-muted rounded mb-8" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-64 bg-muted rounded" />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   // If no data, show placeholder
   if (isLoading) {
