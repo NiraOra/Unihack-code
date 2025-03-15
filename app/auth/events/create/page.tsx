@@ -19,8 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CategoryIcon } from "@/components/category-icon"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/context/auth-context"
-import { createEvent } from "@/app/actions/event-actions"
 import { useToast } from "@/hooks/use-toast"
+import axios from "axios"
 
 export default function CreateEventPage() {
   const { user, isLoading } = useAuth()
@@ -42,11 +42,12 @@ export default function CreateEventPage() {
   async function handleSubmit(formData: FormData) {
     // Client-side validation
     const title = formData.get("title") as string
+    const description = (formData.get("description") as string) || "No description provided"
+    const location = (formData.get("location") as string) || "No location specified"
     const startDateValue = formData.get("start_date") as string
     const startTimeValue = formData.get("start_time") as string
     const endDateValue = formData.get("end_date") as string
     const endTimeValue = formData.get("end_time") as string
-
 
     if (!title || !startDateValue || !startTimeValue || !endDateValue || !endTimeValue || !category) {
       toast.error("Please fill in all required fields")
@@ -56,7 +57,7 @@ export default function CreateEventPage() {
     // Validate that end date/time is after start date/time
     const startDateTime = new Date(`${startDateValue}T${startTimeValue}`)
     const endDateTime = new Date(`${endDateValue}T${endTimeValue}`)
-    
+
     if (endDateTime <= startDateTime) {
       toast.error("End time must be after start time")
       return
@@ -68,25 +69,42 @@ export default function CreateEventPage() {
       return
     }
 
-    // Add category to form data
-    formData.set("category", category)
-
-    // Add is_private to form data
-    formData.set("is_private", isPrivate ? "on" : "off")
-
-    // Add event_password to form data if private
-    if (isPrivate) {
-      formData.set("event_password", eventPassword)
-    }
-
+    // If validation passes, create the event in Google Calendar
     try {
-      await createEvent(formData)
-      toast.success("Event created successfully!")
-      // Redirect to events page after creation
-      router.push("/auth/events")
+      const eventData = {
+        summary: title,
+        description: description,
+        location: location,
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+      }
+
+      // Show loading toast
+      toast("Creating event... Adding your event to Google Calendar") 
+
+      // Call the API to create the event
+      const response = await axios.post("/api/calendar/create", eventData)
+
+      // Handle the response from the calendar API
+      if (response.data.success) {
+        toast.success("Event created successfully in Google Calendar!")
+
+        // Open the event in Google Calendar
+        if (response.data.htmlLink) {
+          window.open(response.data.htmlLink, "_blank")
+        }
+
+        // You can also create the event in your database here
+        // const dbResponse = await createEvent(formData);
+
+        // Optionally redirect to event page or events list
+        // router.push('/events');
+      } else {
+        toast.error("Failed to create event in Google Calendar")
+      }
     } catch (error) {
       console.error("Error creating event:", error)
-      toast.error("Failed to create event. Please try again.")
+      toast.error("Something went wrong while creating the event.")
     }
   }
 
@@ -480,4 +498,3 @@ export default function CreateEventPage() {
     </div>
   )
 }
-
