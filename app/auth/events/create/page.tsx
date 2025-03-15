@@ -62,6 +62,10 @@ export default function CreateEventPage() {
       return
     }
 
+    // Format datetime values for database (ISO format for timestampz)
+    formData.set("start_datetime", startDateTime.toISOString())
+    formData.set("end_datetime", endDateTime.toISOString())
+
     // If private event, password is required
     if (isPrivate && !eventPassword) {
       toast.error("Please provide a password for your private event")

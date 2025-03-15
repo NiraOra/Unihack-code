@@ -23,18 +23,15 @@ export async function createEvent(formData: FormData) {
   // Extract form data
   const title = formData.get("title") as string
   const description = formData.get("description") as string
-  const dateStr = formData.get("date") as string
-  const timeStr = formData.get("time") as string
+  const startDatetime = formData.get("start_datetime") as string
+  const endDatetime = formData.get("end_datetime") as string
   const location = formData.get("location") as string
   const category = formData.get("category") as "movie" | "party" | "food" | "travel" | "picnic"
   const isPrivate = formData.get("is_private") === "on"
   const eventPassword = isPrivate ? (formData.get("event_password") as string) : null
 
-  // Combine date and time
-  const date = new Date(`${dateStr}T${timeStr}`)
-
   // Validate required fields
-  if (!title || !dateStr || !timeStr || !category) {
+  if (!title || !startDatetime || !endDatetime || !category) {
     return { error: { message: "Missing required fields" } }
   }
 
@@ -44,7 +41,8 @@ export async function createEvent(formData: FormData) {
     .insert({
       title,
       description,
-      date: date.toISOString(),
+      start_datetime: startDatetime,
+      end_datetime: endDatetime,
       location,
       category,
       is_private: isPrivate,
