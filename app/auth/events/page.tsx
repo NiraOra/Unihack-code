@@ -97,7 +97,7 @@ export default async function EventsPage() {
                 All Events
               </h1>
             </div>
-            <Link href="/events/create">
+            <Link href="/auth/events/create">
               <Button className="gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-md hover:shadow-lg transition-all duration-300">
                 <Plus className="h-4 w-4" />
                 Create Event
