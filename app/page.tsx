@@ -116,7 +116,7 @@ export default async function Home() {
                   <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
                     <CalendarDays className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                   </div>
-                  Upcoming Events
+                  Upcoming Eventsssss
                 </CardTitle>
               </CardHeader>
               <CardContent>

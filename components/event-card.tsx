@@ -15,6 +15,10 @@ interface Event {
   category: string
   attendees: number
   image: string
+  host?: {  // Make it optional if you don't always have this property
+    name: string
+    avatar: string
+  }
 }
 
 interface EventCardProps {
@@ -124,6 +128,13 @@ export function EventCard({ event, className }: EventCardProps) {
             <span>{event.attendees} attendees</span>
           </div>
         </div>
+          {/* Add this block to display the host info if available */}
+        {event.host && (
+          <div className="flex items-center mt-4">
+            <Image src={event.host.avatar} alt={event.host.name} width={32} height={32} className="rounded-full" />
+            <span className="ml-2 text-sm">{event.host.name}</span>
+          </div>
+        )}
       </CardContent>
 
       <CardFooter className="pt-2 pb-6">
