@@ -27,7 +27,8 @@ export default function CreateEventPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const [date, setDate] = useState<Date | undefined>(undefined)
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined)
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined)
   const [category, setCategory] = useState<string>("party")
   const [isPrivate, setIsPrivate] = useState(false)
   const [eventPassword, setEventPassword] = useState("")
@@ -41,11 +42,23 @@ export default function CreateEventPage() {
   async function handleSubmit(formData: FormData) {
     // Client-side validation
     const title = formData.get("title") as string
-    const dateValue = formData.get("date") as string
-    const timeValue = formData.get("time") as string
+    const startDateValue = formData.get("start_date") as string
+    const startTimeValue = formData.get("start_time") as string
+    const endDateValue = formData.get("end_date") as string
+    const endTimeValue = formData.get("end_time") as string
 
-    if (!title || !dateValue || !timeValue || !category) {
+
+    if (!title || !startDateValue || !startTimeValue || !endDateValue || !endTimeValue || !category) {
       toast.error("Please fill in all required fields")
+      return
+    }
+
+    // Validate that end date/time is after start date/time
+    const startDateTime = new Date(`${startDateValue}T${startTimeValue}`)
+    const endDateTime = new Date(`${endDateValue}T${endTimeValue}`)
+    
+    if (endDateTime <= startDateTime) {
+      toast.error("End time must be after start time")
       return
     }
 
@@ -136,7 +149,7 @@ export default function CreateEventPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-3">
                       <Label className="text-base">
-                        Date <span className="text-red-500">*</span>
+                        Start Date <span className="text-red-500">*</span>
                       </Label>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -145,34 +158,81 @@ export default function CreateEventPage() {
                             variant="outline"
                             className={cn(
                               "w-full justify-start text-left font-normal bg-background/50 backdrop-blur-sm border-muted hover:border-purple-500 transition-colors duration-300",
-                              !date && "text-muted-foreground",
+                              !startDate && "text-muted-foreground",
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4 text-purple-500" />
-                            {date ? format(date, "PPP") : "Select date"}
+                            {startDate ? format(startDate, "PPP") : "Select start date"}
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0 border-0 shadow-xl">
                           <Calendar
                             mode="single"
-                            selected={date}
-                            onSelect={setDate}
+                            selected={startDate}
+                            onSelect={setStartDate}
                             initialFocus
                             className="rounded-lg border-0 shadow-lg bg-gradient-to-br from-background to-background/80 backdrop-blur-sm"
                           />
                         </PopoverContent>
                       </Popover>
                       {/* Hidden input to store the date value */}
-                      <input type="hidden" name="date" value={date ? format(date, "yyyy-MM-dd") : ""} />
+                      <input type="hidden" name="start_date" value={startDate ? format(startDate, "yyyy-MM-dd") : ""} />
                     </div>
 
                     <div className="space-y-3">
-                      <Label htmlFor="time" className="text-base">
-                        Time <span className="text-red-500">*</span>
+                      <Label htmlFor="start_time" className="text-base">
+                        Start Time <span className="text-red-500">*</span>
                       </Label>
                       <Input
-                        id="time"
-                        name="time"
+                        id="start_time"
+                        name="start_time"
+                        type="time"
+                        className="bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <Label className="text-base">
+                        End Date <span className="text-red-500">*</span>
+                      </Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal bg-background/50 backdrop-blur-sm border-muted hover:border-purple-500 transition-colors duration-300",
+                              !endDate && "text-muted-foreground",
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4 text-purple-500" />
+                            {endDate ? format(endDate, "PPP") : "Select end date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 border-0 shadow-xl">
+                          <Calendar
+                            mode="single"
+                            selected={endDate}
+                            onSelect={setEndDate}
+                            initialFocus
+                            className="rounded-lg border-0 shadow-lg bg-gradient-to-br from-background to-background/80 backdrop-blur-sm"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {/* Hidden input to store the date value */}
+                      <input type="hidden" name="end_date" value={endDate ? format(endDate, "yyyy-MM-dd") : ""} />
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label htmlFor="end_time" className="text-base">
+                        End Time <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="end_time"
+                        name="end_time"
                         type="time"
                         className="bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
                         required
