@@ -22,7 +22,7 @@ const supabase = createClient(
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/dashboard"; // Default redirect to dashboard
+  const redirectTo = searchParams.get("redirect") || "/"; // Default redirect to home page
   const { toast } = useToast();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -47,21 +47,13 @@ export default function LoginPage() {
       }
 
       // Show success message
-      toast({
-        title: "Login successful",
-        description: "Welcome back!",
-        variant: "default",
-      });
+      toast.success("Welcome back!");
 
       // Redirect to requested page or dashboard
       router.push(redirectTo);
     } catch (error: any) {
       console.error("Login error:", error.message);
-      toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -74,18 +66,10 @@ export default function LoginPage() {
 
     try {
       // Placeholder logic for event code authentication
-      toast({
-        title: "Event code login",
-        description: "This feature is not yet implemented.",
-        variant: "default",
-      });
+      toast.info("This feature is not yet implemented.");
     } catch (error: any) {
       console.error("Event code error:", error.message);
-      toast({
-        title: "Login failed",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
