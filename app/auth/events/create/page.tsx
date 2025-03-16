@@ -19,8 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CategoryIcon } from "@/components/category-icon"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/context/auth-context"
-import { createEvent } from "@/app/actions/event-actions"
 import { useToast } from "@/hooks/use-toast"
+import axios from "axios"
 
 export default function CreateEventPage() {
   const { user, isLoading } = useAuth()
@@ -48,6 +48,8 @@ export default function CreateEventPage() {
   async function handleSubmit(formData: FormData) {
     // Client-side validation
     const title = formData.get("title") as string
+    const description = (formData.get("description") as string) || "No description provided"
+    const location = (formData.get("location") as string) || "No location specified"
     const startDateValue = formData.get("start_date") as string
     const startTimeValue = formData.get("start_time") as string
     const endDateValue = formData.get("end_date") as string
@@ -61,7 +63,7 @@ export default function CreateEventPage() {
     // Validate that end date/time is after start date/time
     const startDateTime = new Date(`${startDateValue}T${startTimeValue}`)
     const endDateTime = new Date(`${endDateValue}T${endTimeValue}`)
-    
+
     if (endDateTime <= startDateTime) {
       toast.error("End time must be after start time")
       return
@@ -88,11 +90,6 @@ export default function CreateEventPage() {
       formData.set("event_password", eventPassword)
     }
 
-    // Add event image to form data
-    if (eventImage) {
-      formData.set("event_image", eventImage)
-    }
-
     try {
       await createEvent(formData)
       toast.success("Event created successfully!")
@@ -100,7 +97,7 @@ export default function CreateEventPage() {
       router.push("/auth/events")
     } catch (error) {
       console.error("Error creating event:", error)
-      toast.error("Failed to create event. Please try again.")
+      toast.error("Something went wrong while creating the event.")
     }
   }
 
@@ -647,4 +644,3 @@ export default function CreateEventPage() {
     </div>
   )
 }
-
