@@ -41,7 +41,7 @@ export async function createEvent(formData: FormData) {
   // Create the event
   const { data: event, error } = await supabase
     .from("events")
-    .insert({
+    .insert([{
       title,
       description,
       date: date.toISOString(),
@@ -50,7 +50,7 @@ export async function createEvent(formData: FormData) {
       is_private: isPrivate,
       event_password: eventPassword,
       host_id: userId,
-    })
+    }])
     .select()
     .single()
 
