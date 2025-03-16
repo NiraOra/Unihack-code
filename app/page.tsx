@@ -9,6 +9,50 @@ import { HostStats } from "@/components/host-stats"
 import { Confetti } from "@/components/confetti"
 import { getSupabaseServerClient } from "@/lib/supabase"
 import { AuthButton } from "@/components/auth-button"
+import { EventList } from "@/components/event-list"
+
+// Add these interfaces at the top of the file after imports
+interface Profile {
+  id: string
+  full_name: string | null
+  avatar_url: string | null
+}
+
+interface Event {
+  id: string
+  title: string
+  description: string | null
+  date: string
+  location: string | null
+  category: "movie" | "party" | "food" | "travel" | "picnic"
+  image_url: string | null
+  is_private: boolean
+  host_id: string
+  created_at: string
+  updated_at: string
+}
+
+interface HostProfiles {
+  [key: string]: Profile
+}
+
+interface AttendeeCounts {
+  [key: string]: number
+}
+
+interface FormattedEvent {
+  id: string
+  title: string
+  date: string
+  location: string
+  category: string
+  attendees: number
+  image: string
+  host: {
+    name: string
+    avatar: string
+  }
+}
 
 export const revalidate = 0
 
@@ -19,27 +63,43 @@ export default async function Home() {
   // Get the current user
   const {
     data: { session },
+    error: sessionError,
   } = await supabase.auth.getSession()
+  
+  if (sessionError) {
+    console.error("Error fetching session:", sessionError)
+  }
+  
   const userId = session?.user?.id
 
   try {
-    // Fetch upcoming events without joins
-    const { data: upcomingEventsData } = await supabase
+    // Fetch all events without joins
+    const { data: eventsData, error: eventsError } = await supabase
       .from("events")
       .select("*")
-      .gte("date", new Date().toISOString())
       .order("date", { ascending: true })
-      .limit(3)
+      .returns<Event[]>()
+
+    if (eventsError) {
+      throw eventsError
+    }
 
     // Add this after the query to ensure we always have an array
-    const upcomingEvents = upcomingEventsData || []
+    const events = eventsData || []
 
     // Fetch host profiles
-    const hostIds = upcomingEvents.map((event) => event.host_id).filter(Boolean)
-    const hostProfiles = {}
+    const hostIds = events.map((event) => event.host_id).filter(Boolean)
+    const hostProfiles: HostProfiles = {}
 
     if (hostIds.length > 0) {
-      const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", hostIds)
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", hostIds)
+
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError)
+      }
 
       if (profiles) {
         profiles.forEach((profile) => {
@@ -49,10 +109,17 @@ export default async function Home() {
     }
 
     // Fetch attendee counts
-    const attendeeCounts = {}
-    if (upcomingEvents.length > 0) {
-      const eventIds = upcomingEvents.map((event) => event.id)
-      const { data: attendees } = await supabase.from("attendees").select("event_id").in("event_id", eventIds)
+    const attendeeCounts: AttendeeCounts = {}
+    if (events.length > 0) {
+      const eventIds = events.map((event) => event.id)
+      const { data: attendees, error: attendeesError } = await supabase
+        .from("attendees")
+        .select("event_id")
+        .in("event_id", eventIds)
+
+      if (attendeesError) {
+        console.error("Error fetching attendees:", attendeesError)
+      }
 
       if (attendees) {
         attendees.forEach((attendee) => {
@@ -62,7 +129,7 @@ export default async function Home() {
     }
 
     // Format events for display
-    const formattedEvents = upcomingEvents.map((event) => ({
+    const formattedEvents: FormattedEvent[] = events.map((event) => ({
       id: event.id,
       title: event.title,
       date: event.date,
@@ -76,14 +143,18 @@ export default async function Home() {
       },
     }))
 
+    console.log('Formatted events before passing to EventList:', formattedEvents)
+
+    // Calculate total attendees and upcoming events count
+    const now = new Date().toISOString()
+    const upcomingEventsCount = formattedEvents.filter(event => event.date >= now).length
+    const totalAttendees = Object.values(attendeeCounts).reduce((sum, count) => sum + count, 0)
+
     // Fetch past events count
     const { count: pastEventsCount } = await supabase
       .from("events")
       .select("id", { count: "exact", head: true })
       .lt("date", new Date().toISOString())
-
-    // Calculate total attendees
-    const totalAttendees = Object.values(attendeeCounts).reduce((sum: number, count: number) => sum + count, 0)
 
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-background/50">
@@ -116,12 +187,12 @@ export default async function Home() {
                   <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
                     <CalendarDays className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                   </div>
-                  Upcoming Eventsssss
+                  Upcoming Events
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                  {formattedEvents.length}
+                  {upcomingEventsCount}
                 </p>
               </CardContent>
             </Card>
@@ -165,32 +236,7 @@ export default async function Home() {
             <div className="absolute top-20 right-20 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -z-10" />
             <div className="absolute bottom-10 left-20 w-64 h-64 bg-pink-500/5 rounded-full blur-3xl -z-10" />
 
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-3xl font-bold">Upcoming Events</h2>
-              <Link href="/events">
-                <Button variant="ghost" className="hover:bg-background/80 transition-all duration-300">
-                  View All
-                </Button>
-              </Link>
-            </div>
-
-            {formattedEvents.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {formattedEvents.map((event) => (
-                  <EventCard key={event.id} event={event} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 bg-muted/30 rounded-xl backdrop-blur-sm">
-                <p className="text-muted-foreground mb-4">No upcoming events found</p>
-                <Link href="/auth/events/create">
-                  <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-md hover:shadow-lg transition-all duration-300">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Your First Event
-                  </Button>
-                </Link>
-              </div>
-            )}
+            <EventList events={formattedEvents} />
           </div>
 
           {userId && (
