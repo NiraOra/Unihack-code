@@ -46,60 +46,113 @@ export default function CreateEventPage() {
   }
 
   async function handleSubmit(formData: FormData) {
-    // Client-side validation
-    const title = formData.get("title") as string
-    const description = (formData.get("description") as string) || "No description provided"
-    const location = (formData.get("location") as string) || "No location specified"
-    const startDateValue = formData.get("start_date") as string
-    const startTimeValue = formData.get("start_time") as string
-    const endDateValue = formData.get("end_date") as string
-    const endTimeValue = formData.get("end_time") as string
-
-    if (!title || !startDateValue || !startTimeValue || !endDateValue || !endTimeValue || !category) {
-      toast.error("Please fill in all required fields")
-      return
-    }
-
-    // Validate that end date/time is after start date/time
-    const startDateTime = new Date(`${startDateValue}T${startTimeValue}`)
-    const endDateTime = new Date(`${endDateValue}T${endTimeValue}`)
-
-    if (endDateTime <= startDateTime) {
-      toast.error("End time must be after start time")
-      return
-    }
-
-    // Format datetime values for database (ISO format for timestampz)
-    formData.set("start_datetime", startDateTime.toISOString())
-    formData.set("end_datetime", endDateTime.toISOString())
-
-    // If private event, password is required
-    if (isPrivate && !eventPassword) {
-      toast.error("Please provide a password for your private event")
-      return
-    }
-
-    // Add category to form data
-    formData.set("category", category)
-
-    // Add is_private to form data
-    formData.set("is_private", isPrivate ? "on" : "off")
-
-    // Add event_password to form data if private
-    if (isPrivate) {
-      formData.set("event_password", eventPassword)
-    }
-
-    try {
-      await createEvent(formData)
-      toast.success("Event created successfully!")
-      // Redirect to events page after creation
-      router.push("/auth/events")
-    } catch (error) {
-      console.error("Error creating event:", error)
-      toast.error("Something went wrong while creating the event.")
-    }
+  // Client-side validation
+  const title = formData.get("title") as string
+  const description = (formData.get("description") as string) || "No description provided"
+  const location = (formData.get("location") as string) || "No location specified"
+  const startDateValue = formData.get("start_date") as string
+  const startTimeValue = formData.get("start_time") as string
+  const endDateValue = formData.get("end_date") as string
+  const endTimeValue = formData.get("end_time") as string
+  const imagePrompt = formData.get("image_prompt") as string // Assuming image description is provided in the form
+  
+  if (!title || !startDateValue || !startTimeValue || !endDateValue || !endTimeValue || !category) {
+    toast.error("Please fill in all required fields")
+    return
   }
+
+  // Validate that end date/time is after start date/time
+  const startDateTime = new Date(`${startDateValue}T${startTimeValue}`)
+  const endDateTime = new Date(`${endDateValue}T${endTimeValue}`)
+
+  if (endDateTime <= startDateTime) {
+    toast.error("End time must be after start time")
+    return
+  }
+
+  // If private event, password is required
+  if (isPrivate && !eventPassword) {
+    toast.error("Please provide a password for your private event")
+    return
+  }
+
+  // Format datetime values for database (ISO format for timestampz)
+  formData.set("start_datetime", startDateTime.toISOString())
+  formData.set("end_datetime", endDateTime.toISOString())
+
+  // Add category and privacy information to form data
+  formData.set("category", category)
+  formData.set("is_private", isPrivate ? "on" : "off")
+  if (isPrivate) {
+    formData.set("event_password", eventPassword)
+  }
+
+  // Show loading toast while processing the event creation and image generation
+  toast("Creating event...")
+
+  try {
+    // Step 1: Create the event in Google Calendar
+    const eventData = {
+      summary: title,
+      description: description,
+      location: location,
+      startTime: startDateTime.toISOString(),
+      endTime: endDateTime.toISOString(),
+    }
+
+    const response = await axios.post("/api/calendar/create", eventData)
+
+    if (response.data.success) {
+      toast.success("Event created successfully in Google Calendar!")
+
+      // Optionally open the event in Google Calendar
+      if (response.data.htmlLink) {
+        window.open(response.data.htmlLink, "_blank")
+      }
+      
+      // You can also store the event in your database here, e.g.:
+      // await createEvent(formData)
+    } else {
+      toast.error("Failed to create event in Google Calendar")
+      return
+    }
+
+    // Step 2: Generate the image using Hugging Face API if an image prompt is provided
+    if (imagePrompt) {
+      const huggingFaceApiKey = process.env.NEXT_PUBLIC_HUGGING_FACE_API
+      if (!huggingFaceApiKey) {
+        throw new Error("Hugging Face API key is missing")
+      }
+
+      const imageResponse = await fetch("https://api-inference.huggingface.co/models/Yntec/IncredibleLife", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${huggingFaceApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inputs: imagePrompt }),
+      })
+
+      if (!imageResponse.ok) {
+        const errorText = await imageResponse.text()
+        console.error("Error generating image:", errorText)
+        throw new Error(`Failed to generate image: ${imageResponse.statusText}`)
+      }
+
+      const blob = await imageResponse.blob()
+      const imageUrl = URL.createObjectURL(blob)
+      setGeneratedImage(imageUrl) // Assuming setGeneratedImage updates the UI
+      toast.success("Image generated successfully!")
+    }
+
+    // Optionally redirect to events page or display generated image
+    router.push("/auth/events")
+
+  } catch (error) {
+    console.error("Error:", error)
+    toast.error("Something went wrong while creating the event or generating the image.")
+  }
+}
 
   async function handleGenerateImage() {
     if (!imagePrompt) {
