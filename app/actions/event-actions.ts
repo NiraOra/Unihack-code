@@ -39,18 +39,31 @@ export async function createEvent(formData: FormData) {
   }
 
   // Create the event
+  console.log('Attempting to create event with data:', {
+    title,
+    description,
+    start_datetime: date.toISOString(),
+    end_datetime: date.toISOString(),
+    location,
+    category,
+    is_private: isPrivate,
+    event_password: eventPassword,
+    host_id: userId
+  });
+
   const { data: event, error } = await supabase
     .from("events")
-    .insert({
+    .insert([{
       title,
       description,
-      date: date.toISOString(),
+      start_datetime: date.toISOString(),
+      end_datetime: date.toISOString(),
       location,
       category,
       is_private: isPrivate,
       event_password: eventPassword,
-      host_id: userId,
-    })
+      host_id: userId
+    }])
     .select()
     .single()
 
@@ -58,6 +71,8 @@ export async function createEvent(formData: FormData) {
     console.error("Error creating event:", error)
     return { error }
   }
+
+  console.log('Event created successfully:', event);
 
   // Revalidate the home page to show the new event
   revalidatePath("/")

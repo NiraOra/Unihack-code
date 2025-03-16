@@ -12,6 +12,22 @@ import { AuthButton } from "@/components/auth-button"
 
 export const revalidate = 0
 
+interface Event {
+  id: string;
+  title: string;
+  start_datetime: string;
+  location: string;
+  category: string;
+  host_id: string;
+  image_url?: string;
+}
+
+interface Profile {
+  id: string;
+  full_name: string;
+  avatar_url: string;
+}
+
 export default async function Home() {
   const cookieStore = cookies()
   const supabase = getSupabaseServerClient()
@@ -27,35 +43,35 @@ export default async function Home() {
     const { data: upcomingEventsData } = await supabase
       .from("events")
       .select("*")
-      .gte("date", new Date().toISOString())
-      .order("date", { ascending: true })
+      .gte("start_datetime", new Date().toISOString())
+      .order("start_datetime", { ascending: true })
       .limit(3)
 
     // Add this after the query to ensure we always have an array
-    const upcomingEvents = upcomingEventsData || []
+    const upcomingEvents: Event[] = upcomingEventsData || []
 
     // Fetch host profiles
     const hostIds = upcomingEvents.map((event) => event.host_id).filter(Boolean)
-    const hostProfiles = {}
+    const hostProfiles: Record<string, Profile> = {}
 
     if (hostIds.length > 0) {
       const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", hostIds)
 
       if (profiles) {
-        profiles.forEach((profile) => {
+        profiles.forEach((profile: Profile) => {
           hostProfiles[profile.id] = profile
         })
       }
     }
 
     // Fetch attendee counts
-    const attendeeCounts = {}
+    const attendeeCounts: Record<string, number> = {}
     if (upcomingEvents.length > 0) {
       const eventIds = upcomingEvents.map((event) => event.id)
       const { data: attendees } = await supabase.from("attendees").select("event_id").in("event_id", eventIds)
 
       if (attendees) {
-        attendees.forEach((attendee) => {
+        attendees.forEach((attendee: { event_id: string }) => {
           attendeeCounts[attendee.event_id] = (attendeeCounts[attendee.event_id] || 0) + 1
         })
       }
@@ -65,7 +81,7 @@ export default async function Home() {
     const formattedEvents = upcomingEvents.map((event) => ({
       id: event.id,
       title: event.title,
-      date: event.date,
+      date: event.start_datetime,
       location: event.location || "No location specified",
       category: event.category,
       attendees: attendeeCounts[event.id] || 0,
@@ -80,7 +96,7 @@ export default async function Home() {
     const { count: pastEventsCount } = await supabase
       .from("events")
       .select("id", { count: "exact", head: true })
-      .lt("date", new Date().toISOString())
+      .lt("start_datetime", new Date().toISOString())
 
     // Calculate total attendees
     const totalAttendees = Object.values(attendeeCounts).reduce((sum: number, count: number) => sum + count, 0)
