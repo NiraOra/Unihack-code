@@ -205,6 +205,8 @@ export default function CreateEventPage() {
                       name="title"
                       placeholder="Enter event title"
                       className="bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
+                      value={title} // Bind the title state
+                      onChange={(e) => setTitle(e.target.value)} // Update title state on change
                       required
                     />
                   </div>
@@ -326,6 +328,8 @@ export default function CreateEventPage() {
                         name="location"
                         placeholder="Enter event location"
                         className="rounded-r-none bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
+                        value={location} // Bind the location state
+                        onChange={(e) => setLocation(e.target.value)} // Update location state on change
                       />
                       <Button
                         type="button"
@@ -588,7 +592,7 @@ export default function CreateEventPage() {
                             className="rounded-lg shadow-md w-full h-48 object-cover"
                           />
                         )}
-                        <h2 className="text-xl font-bold">{title || "Event Title"}</h2>
+                        <h2 className="text-xl font-bold">{title || "Event Title"}</h2> {/* Dynamically update title */}
                         <div className="flex items-center gap-2">
                           <CalendarIcon className="h-5 w-5 text-muted-foreground" />
                           <p className="text-sm text-muted-foreground">
@@ -598,7 +602,7 @@ export default function CreateEventPage() {
                         <div className="flex items-center gap-2">
                           <MapPin className="h-5 w-5 text-muted-foreground" />
                           <p className="text-sm text-muted-foreground">
-                            {location || "Event Location"}
+                            {location || "Event Location"} {/* Dynamically update location */}
                           </p>
                         </div>
                         <p className="text-sm text-muted-foreground">
