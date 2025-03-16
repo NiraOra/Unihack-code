@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { CalendarIcon, ChevronLeft, ImageIcon, MapPin, Sparkles, Upload, Ticket } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -32,6 +32,12 @@ export default function CreateEventPage() {
   const [category, setCategory] = useState<string>("party")
   const [isPrivate, setIsPrivate] = useState(false)
   const [eventPassword, setEventPassword] = useState("")
+  const [imagePrompt, setImagePrompt] = useState("") // State for storing the image prompt
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null) // State for storing the generated image URL
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null) // State for storing the uploaded image URL
+  const [eventImage, setEventImage] = useState<string | null>(null) // State for storing the final event image
+  const [title, setTitle] = useState<string>("")
+  const [location, setLocation] = useState<string>("")
 
   // Redirect to login if not authenticated
   if (!isLoading && !user) {
@@ -47,7 +53,6 @@ export default function CreateEventPage() {
     const endDateValue = formData.get("end_date") as string
     const endTimeValue = formData.get("end_time") as string
 
-
     if (!title || !startDateValue || !startTimeValue || !endDateValue || !endTimeValue || !category) {
       toast.error("Please fill in all required fields")
       return
@@ -61,6 +66,10 @@ export default function CreateEventPage() {
       toast.error("End time must be after start time")
       return
     }
+
+    // Format datetime values for database (ISO format for timestampz)
+    formData.set("start_datetime", startDateTime.toISOString())
+    formData.set("end_datetime", endDateTime.toISOString())
 
     // If private event, password is required
     if (isPrivate && !eventPassword) {
@@ -79,6 +88,11 @@ export default function CreateEventPage() {
       formData.set("event_password", eventPassword)
     }
 
+    // Add event image to form data
+    if (eventImage) {
+      formData.set("event_image", eventImage)
+    }
+
     try {
       await createEvent(formData)
       toast.success("Event created successfully!")
@@ -89,6 +103,68 @@ export default function CreateEventPage() {
       toast.error("Failed to create event. Please try again.")
     }
   }
+
+  async function handleGenerateImage() {
+    if (!imagePrompt) {
+      toast.error("Please provide a description for the image")
+      return
+    }
+
+    try {
+      const huggingFaceApiKey = process.env.NEXT_PUBLIC_HUGGING_FACE_API
+      if (!huggingFaceApiKey) {
+        throw new Error("Hugging Face API key is missing")
+      }
+
+      const response = await fetch("https://api-inference.huggingface.co/models/Yntec/IncredibleLife", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${huggingFaceApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inputs: imagePrompt }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("Error response:", errorText)
+        throw new Error(`Failed to generate image: ${response.statusText}`)
+      }
+
+      const blob = await response.blob()
+      const imageUrl = URL.createObjectURL(blob)
+      setGeneratedImage(imageUrl)
+      toast.success("Image generated successfully!")
+    } catch (error) {
+      console.error("Error generating image:", error)
+      toast.error(`Failed to generate image. Please try again. ${error}`)
+    }
+  }
+
+  useEffect(() => {
+    if (eventImage) {
+      console.log("Final event image URL:", eventImage)
+    }
+  }, [eventImage])
+
+  const getCategoryBackground = (category: string) => {
+    switch (category) {
+      case "movie":
+        return "bg-gradient-to-b from-blue-100 to-cyan-100"
+      case "party":
+        return "bg-gradient-to-b from-purple-100 to-pink-100"
+      case "food":
+        return "bg-gradient-to-b from-orange-100 to-amber-100"
+      case "travel":
+        return "bg-gradient-to-b from-amber-100 to-yellow-100"
+      case "picnic":
+        return "bg-gradient-to-b from-green-100 to-emerald-100"
+      default:
+        return "bg-gradient-to-b from-gray-100 to-slate-100"
+    }
+  }
+
+  const previewBackground = getCategoryBackground(category)
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/50">
@@ -402,13 +478,61 @@ export default function CreateEventPage() {
                             size="sm"
                             variant="outline"
                             className="mt-2 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600 transition-all duration-300"
+                            onClick={() => document.getElementById("image")?.click()}
                           >
                             <Upload className="h-4 w-4 mr-2" />
                             Browse
                           </Button>
-                          <input type="file" name="image" id="image" className="hidden" accept="image/*" />
+                          <input
+                            type="file"
+                            name="image"
+                            id="image"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onload = () => {
+                                  const resImg = reader.result as string
+                                  setUploadedImage(resImg) // Display the uploaded image
+                                  toast.info("Image uploaded. Please confirm if you want to use it as the event image.")
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }}
+                          />
                         </div>
                       </div>
+                      {uploadedImage && (
+                        <div className="mt-4">
+                          <p className="text-base font-medium mb-2">Uploaded Image:</p>
+                          <img src={uploadedImage} alt="Uploaded" className="rounded-lg shadow-md mb-4" />
+                          <div className="flex gap-4">
+                            <Button
+                              type="button"
+                              className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 shadow-md hover:shadow-lg transition-all duration-300"
+                              onClick={() => {
+                                setEventImage(uploadedImage) // Set the uploaded image as the event image
+                                toast.success("Uploaded image set as the event image!")
+                              }}
+                            >
+                              Use This Image as Event Image
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full hover:bg-background/80 transition-all duration-300"
+                              onClick={() => {
+                                setUploadedImage(null) // Clear the uploaded image
+                                toast.info("Uploaded image discarded.")
+                              }}
+                            >
+                              Discard Image
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </TabsContent>
 
                     <TabsContent value="generate" className="space-y-4 mt-4">
@@ -422,15 +546,24 @@ export default function CreateEventPage() {
                           placeholder="Describe the image you want to generate..."
                           rows={4}
                           className="bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
+                          value={imagePrompt}
+                          onChange={(e) => setImagePrompt(e.target.value)}
                         />
                       </div>
                       <Button
                         type="button"
                         className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-md hover:shadow-lg transition-all duration-300"
+                        onClick={handleGenerateImage}
                       >
                         <Sparkles className="h-4 w-4 mr-2" />
                         Generate Image
                       </Button>
+                      {generatedImage && (
+                        <div>
+                          <img src={generatedImage} alt="Generated" className="rounded-lg shadow-md" />
+                          <Button onClick={() => setEventImage(generatedImage)}>Use This Image</Button>
+                        </div>
+                      )}
                     </TabsContent>
                   </Tabs>
                 </CardContent>
@@ -445,14 +578,44 @@ export default function CreateEventPage() {
                 </CardHeader>
 
                 <CardContent>
-                  <div className="bg-muted/30 rounded-xl p-6 flex items-center justify-center h-48 border border-muted">
-                    <div className="text-center">
-                      <p className="text-muted-foreground mb-2">Event preview will appear here</p>
-                      <div className="inline-block p-2 rounded-full bg-muted/50">
-                        <Ticket className="h-6 w-6 text-muted-foreground" />
+                  {title || startDate || eventImage ? (
+                    <div className={`rounded-xl p-6 border border-muted ${previewBackground}`}>
+                      <div className="flex flex-col items-center space-y-4">
+                        {eventImage && (
+                          <img
+                            src={eventImage}
+                            alt="Event Preview"
+                            className="rounded-lg shadow-md w-full h-48 object-cover"
+                          />
+                        )}
+                        <h2 className="text-xl font-bold">{title || "Event Title"}</h2>
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            {startDate ? format(startDate, "PPP") : "Start Date"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-5 w-5 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            {location || "Event Location"}
+                          </p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {category ? `Category: ${category}` : "Event Category"}
+                        </p>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-muted/30 rounded-xl p-6 flex items-center justify-center h-48 border border-muted">
+                      <div className="text-center">
+                        <p className="text-muted-foreground mb-2">Event preview will appear here</p>
+                        <div className="inline-block p-2 rounded-full bg-muted/50">
+                          <Ticket className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
