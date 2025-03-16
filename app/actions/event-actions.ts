@@ -9,7 +9,6 @@ export async function createEvent(formData: FormData) {
   const supabase = getSupabaseServerClient()
 
   // Get the current user
-  const cookieStore = cookies()
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -22,35 +21,49 @@ export async function createEvent(formData: FormData) {
 
   // Extract form data
   const title = formData.get("title") as string
-  const description = formData.get("description") as string
-  const dateStr = formData.get("date") as string
-  const timeStr = formData.get("time") as string
-  const location = formData.get("location") as string
+  const description = formData.get("description") as string || "No description provided"
+  const startDateStr = formData.get("start_date") as string
+  const location = formData.get("location") as string || "No location specified"
   const category = formData.get("category") as "movie" | "party" | "food" | "travel" | "picnic"
+  const imgUrl = formData.get("img_prompt") as string || null
+  const endDateStr = formData.get("end_date") as string
+  const startTimeStr = formData.get("start_time") as string
+  const endTimeStr = formData.get("end_time") as string
+
   const isPrivate = formData.get("is_private") === "on"
   const eventPassword = isPrivate ? (formData.get("event_password") as string) : null
 
   // Combine date and time
-  const date = new Date(`${dateStr}T${timeStr}`)
+  const startDate = new Date(`${startDateStr}T${startTimeStr}`)
+  const endDate = new Date(`${endDateStr}T${endTimeStr}`)
 
   // Validate required fields
-  if (!title || !dateStr || !timeStr || !category) {
+  if (!title || !startDateStr || !startTimeStr || !endDateStr || !endTimeStr || !category) {
     return { error: { message: "Missing required fields" } }
+  }
+
+  // Validate that end date/time is after start date/time
+  if (endDate <= startDate) {
+    return { error: { message: "End time must be after start time" } }
   }
 
   // Create the event
   const { data: event, error } = await supabase
     .from("events")
-    .insert([{
-      title,
-      description,
-      date: date.toISOString(),
-      location,
-      category,
-      is_private: isPrivate,
-      event_password: eventPassword,
-      host_id: userId,
-    }])
+    .insert([
+      {
+        title,
+        description,
+        start_datetime: startDate.toISOString(),
+        end_datetime: endDate.toISOString(),
+        location,
+        category,
+        img_prompt: imgUrl,
+        is_private: isPrivate,
+        event_password: eventPassword,
+        host_id: userId,
+      },
+    ])
     .select()
     .single()
 
@@ -63,7 +76,7 @@ export async function createEvent(formData: FormData) {
   revalidatePath("/")
 
   // Redirect to the event page
-  redirect(`/events/${event.id}`)
+  redirect(`/auth/events/${event.id}`)
 }
 
 export async function submitRsvp(formData: FormData) {
