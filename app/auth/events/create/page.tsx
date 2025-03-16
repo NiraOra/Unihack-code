@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { CalendarIcon, ChevronLeft, ImageIcon, MapPin, Sparkles, Upload, Ticket } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -19,8 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CategoryIcon } from "@/components/category-icon"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/context/auth-context"
-import { createEvent } from "@/app/actions/event-actions"
 import { useToast } from "@/hooks/use-toast"
+import axios from "axios"
 
 export default function CreateEventPage() {
   const { user, isLoading } = useAuth()
@@ -32,6 +32,12 @@ export default function CreateEventPage() {
   const [category, setCategory] = useState<string>("party")
   const [isPrivate, setIsPrivate] = useState(false)
   const [eventPassword, setEventPassword] = useState("")
+  const [imagePrompt, setImagePrompt] = useState("") // State for storing the image prompt
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null) // State for storing the generated image URL
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null) // State for storing the uploaded image URL
+  const [eventImage, setEventImage] = useState<string | null>(null) // State for storing the final event image
+  const [title, setTitle] = useState<string>("")
+  const [location, setLocation] = useState<string>("")
 
   // Redirect to login if not authenticated
   if (!isLoading && !user) {
@@ -40,55 +46,175 @@ export default function CreateEventPage() {
   }
 
   async function handleSubmit(formData: FormData) {
-    // Client-side validation
-    const title = formData.get("title") as string
-    const startDateValue = formData.get("start_date") as string
-    const startTimeValue = formData.get("start_time") as string
-    const endDateValue = formData.get("end_date") as string
-    const endTimeValue = formData.get("end_time") as string
+  // Client-side validation
+  const title = formData.get("title") as string
+  const description = (formData.get("description") as string) || "No description provided"
+  const location = (formData.get("location") as string) || "No location specified"
+  const startDateValue = formData.get("start_date") as string
+  const startTimeValue = formData.get("start_time") as string
+  const endDateValue = formData.get("end_date") as string
+  const endTimeValue = formData.get("end_time") as string
+  const imagePrompt = formData.get("image_prompt") as string // Assuming image description is provided in the form
+  
+  if (!title || !startDateValue || !startTimeValue || !endDateValue || !endTimeValue || !category) {
+    toast.error("Please fill in all required fields")
+    return
+  }
 
+  // Validate that end date/time is after start date/time
+  const startDateTime = new Date(`${startDateValue}T${startTimeValue}`)
+  const endDateTime = new Date(`${endDateValue}T${endTimeValue}`)
 
-    if (!title || !startDateValue || !startTimeValue || !endDateValue || !endTimeValue || !category) {
-      toast.error("Please fill in all required fields")
+  if (endDateTime <= startDateTime) {
+    toast.error("End time must be after start time")
+    return
+  }
+
+  // If private event, password is required
+  if (isPrivate && !eventPassword) {
+    toast.error("Please provide a password for your private event")
+    return
+  }
+
+  // Format datetime values for database (ISO format for timestampz)
+  formData.set("start_datetime", startDateTime.toISOString())
+  formData.set("end_datetime", endDateTime.toISOString())
+
+  // Add category and privacy information to form data
+  formData.set("category", category)
+  formData.set("is_private", isPrivate ? "on" : "off")
+  if (isPrivate) {
+    formData.set("event_password", eventPassword)
+  }
+
+  // Show loading toast while processing the event creation and image generation
+  toast("Creating event...")
+
+  try {
+    // Step 1: Create the event in Google Calendar
+    const eventData = {
+      summary: title,
+      description: description,
+      location: location,
+      startTime: startDateTime.toISOString(),
+      endTime: endDateTime.toISOString(),
+    }
+
+    const response = await axios.post("/api/calendar/create", eventData)
+
+    if (response.data.success) {
+      toast.success("Event created successfully in Google Calendar!")
+
+      // Optionally open the event in Google Calendar
+      if (response.data.htmlLink) {
+        window.open(response.data.htmlLink, "_blank")
+      }
+      
+      // You can also store the event in your database here, e.g.:
+      // await createEvent(formData)
+    } else {
+      toast.error("Failed to create event in Google Calendar")
       return
     }
 
-    // Validate that end date/time is after start date/time
-    const startDateTime = new Date(`${startDateValue}T${startTimeValue}`)
-    const endDateTime = new Date(`${endDateValue}T${endTimeValue}`)
-    
-    if (endDateTime <= startDateTime) {
-      toast.error("End time must be after start time")
-      return
+    // Step 2: Generate the image using Hugging Face API if an image prompt is provided
+    if (imagePrompt) {
+      const huggingFaceApiKey = process.env.NEXT_PUBLIC_HUGGING_FACE_API
+      if (!huggingFaceApiKey) {
+        throw new Error("Hugging Face API key is missing")
+      }
+
+      const imageResponse = await fetch("https://api-inference.huggingface.co/models/Yntec/IncredibleLife", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${huggingFaceApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inputs: imagePrompt }),
+      })
+
+      if (!imageResponse.ok) {
+        const errorText = await imageResponse.text()
+        console.error("Error generating image:", errorText)
+        throw new Error(`Failed to generate image: ${imageResponse.statusText}`)
+      }
+
+      const blob = await imageResponse.blob()
+      const imageUrl = URL.createObjectURL(blob)
+      setGeneratedImage(imageUrl) // Assuming setGeneratedImage updates the UI
+      toast.success("Image generated successfully!")
     }
 
-    // If private event, password is required
-    if (isPrivate && !eventPassword) {
-      toast.error("Please provide a password for your private event")
+    // Optionally redirect to events page or display generated image
+    router.push("/auth/events")
+
+  } catch (error) {
+    console.error("Error:", error)
+    toast.error("Something went wrong while creating the event or generating the image.")
+  }
+}
+
+  async function handleGenerateImage() {
+    if (!imagePrompt) {
+      toast.error("Please provide a description for the image")
       return
-    }
-
-    // Add category to form data
-    formData.set("category", category)
-
-    // Add is_private to form data
-    formData.set("is_private", isPrivate ? "on" : "off")
-
-    // Add event_password to form data if private
-    if (isPrivate) {
-      formData.set("event_password", eventPassword)
     }
 
     try {
-      await createEvent(formData)
-      toast.success("Event created successfully!")
-      // Redirect to events page after creation
-      router.push("/auth/events")
+      const huggingFaceApiKey = process.env.NEXT_PUBLIC_HUGGING_FACE_API
+      if (!huggingFaceApiKey) {
+        throw new Error("Hugging Face API key is missing")
+      }
+
+      const response = await fetch("https://api-inference.huggingface.co/models/Yntec/IncredibleLife", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${huggingFaceApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inputs: imagePrompt }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("Error response:", errorText)
+        throw new Error(`Failed to generate image: ${response.statusText}`)
+      }
+
+      const blob = await response.blob()
+      const imageUrl = URL.createObjectURL(blob)
+      setGeneratedImage(imageUrl)
+      toast.success("Image generated successfully!")
     } catch (error) {
-      console.error("Error creating event:", error)
-      toast.error("Failed to create event. Please try again.")
+      console.error("Error generating image:", error)
+      toast.error(`Failed to generate image. Please try again. ${error}`)
     }
   }
+
+  useEffect(() => {
+    if (eventImage) {
+      console.log("Final event image URL:", eventImage)
+    }
+  }, [eventImage])
+
+  const getCategoryBackground = (category: string) => {
+    switch (category) {
+      case "movie":
+        return "bg-gradient-to-b from-blue-100 to-cyan-100"
+      case "party":
+        return "bg-gradient-to-b from-purple-100 to-pink-100"
+      case "food":
+        return "bg-gradient-to-b from-orange-100 to-amber-100"
+      case "travel":
+        return "bg-gradient-to-b from-amber-100 to-yellow-100"
+      case "picnic":
+        return "bg-gradient-to-b from-green-100 to-emerald-100"
+      default:
+        return "bg-gradient-to-b from-gray-100 to-slate-100"
+    }
+  }
+
+  const previewBackground = getCategoryBackground(category)
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/50">
@@ -129,6 +255,8 @@ export default function CreateEventPage() {
                       name="title"
                       placeholder="Enter event title"
                       className="bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
+                      value={title} // Bind the title state
+                      onChange={(e) => setTitle(e.target.value)} // Update title state on change
                       required
                     />
                   </div>
@@ -250,6 +378,8 @@ export default function CreateEventPage() {
                         name="location"
                         placeholder="Enter event location"
                         className="rounded-r-none bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
+                        value={location} // Bind the location state
+                        onChange={(e) => setLocation(e.target.value)} // Update location state on change
                       />
                       <Button
                         type="button"
@@ -402,13 +532,61 @@ export default function CreateEventPage() {
                             size="sm"
                             variant="outline"
                             className="mt-2 group-hover:bg-purple-600 group-hover:text-white group-hover:border-purple-600 transition-all duration-300"
+                            onClick={() => document.getElementById("image")?.click()}
                           >
                             <Upload className="h-4 w-4 mr-2" />
                             Browse
                           </Button>
-                          <input type="file" name="image" id="image" className="hidden" accept="image/*" />
+                          <input
+                            type="file"
+                            name="image"
+                            id="image"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onload = () => {
+                                  const resImg = reader.result as string
+                                  setUploadedImage(resImg) // Display the uploaded image
+                                  toast.info("Image uploaded. Please confirm if you want to use it as the event image.")
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }}
+                          />
                         </div>
                       </div>
+                      {uploadedImage && (
+                        <div className="mt-4">
+                          <p className="text-base font-medium mb-2">Uploaded Image:</p>
+                          <img src={uploadedImage} alt="Uploaded" className="rounded-lg shadow-md mb-4" />
+                          <div className="flex gap-4">
+                            <Button
+                              type="button"
+                              className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 shadow-md hover:shadow-lg transition-all duration-300"
+                              onClick={() => {
+                                setEventImage(uploadedImage) // Set the uploaded image as the event image
+                                toast.success("Uploaded image set as the event image!")
+                              }}
+                            >
+                              Use This Image as Event Image
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full hover:bg-background/80 transition-all duration-300"
+                              onClick={() => {
+                                setUploadedImage(null) // Clear the uploaded image
+                                toast.info("Uploaded image discarded.")
+                              }}
+                            >
+                              Discard Image
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </TabsContent>
 
                     <TabsContent value="generate" className="space-y-4 mt-4">
@@ -422,15 +600,24 @@ export default function CreateEventPage() {
                           placeholder="Describe the image you want to generate..."
                           rows={4}
                           className="bg-background/50 backdrop-blur-sm border-muted focus:border-purple-500 transition-colors duration-300"
+                          value={imagePrompt}
+                          onChange={(e) => setImagePrompt(e.target.value)}
                         />
                       </div>
                       <Button
                         type="button"
                         className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-md hover:shadow-lg transition-all duration-300"
+                        onClick={handleGenerateImage}
                       >
                         <Sparkles className="h-4 w-4 mr-2" />
                         Generate Image
                       </Button>
+                      {generatedImage && (
+                        <div>
+                          <img src={generatedImage} alt="Generated" className="rounded-lg shadow-md" />
+                          <Button onClick={() => setEventImage(generatedImage)}>Use This Image</Button>
+                        </div>
+                      )}
                     </TabsContent>
                   </Tabs>
                 </CardContent>
@@ -445,14 +632,44 @@ export default function CreateEventPage() {
                 </CardHeader>
 
                 <CardContent>
-                  <div className="bg-muted/30 rounded-xl p-6 flex items-center justify-center h-48 border border-muted">
-                    <div className="text-center">
-                      <p className="text-muted-foreground mb-2">Event preview will appear here</p>
-                      <div className="inline-block p-2 rounded-full bg-muted/50">
-                        <Ticket className="h-6 w-6 text-muted-foreground" />
+                  {title || startDate || eventImage ? (
+                    <div className={`rounded-xl p-6 border border-muted ${previewBackground}`}>
+                      <div className="flex flex-col items-center space-y-4">
+                        {eventImage && (
+                          <img
+                            src={eventImage}
+                            alt="Event Preview"
+                            className="rounded-lg shadow-md w-full h-48 object-cover"
+                          />
+                        )}
+                        <h2 className="text-xl font-bold">{title || "Event Title"}</h2> {/* Dynamically update title */}
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            {startDate ? format(startDate, "PPP") : "Start Date"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-5 w-5 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            {location || "Event Location"} {/* Dynamically update location */}
+                          </p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {category ? `Category: ${category}` : "Event Category"}
+                        </p>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-muted/30 rounded-xl p-6 flex items-center justify-center h-48 border border-muted">
+                      <div className="text-center">
+                        <p className="text-muted-foreground mb-2">Event preview will appear here</p>
+                        <div className="inline-block p-2 rounded-full bg-muted/50">
+                          <Ticket className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -480,4 +697,3 @@ export default function CreateEventPage() {
     </div>
   )
 }
-
